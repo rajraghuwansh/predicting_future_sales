@@ -5,8 +5,8 @@ import pandas as pd
 
 app = Flask(__name__)
 model = pickle.load(open('random_forest_picklefile.pkl', 'rb'))
-#Ipkl = pickle.load(open('leI.pkl'))
-#ICpkl=  pickle.load(open('leI.pkl'))
+Ipkl = pickle.load(open('leI.pkl','rb'))
+ICpkl=  pickle.load(open('leIC.pkl','rb'))
 items = pd.read_csv('items.csv')
 items_cat = pd.read_csv('item_categories.csv')
 sim = pd.read_csv('shop_item_sale.csv')
@@ -18,25 +18,33 @@ def  inputdata(s,itd,m,y):
     out = []
     for i in range(11):
         out.append(0)
+    
+        
     icm = sim[(sim['item_id']==itd) & (sim['shop_id']==s)]['item_cnt_month_mean'].values
     if(icm.size):
         out[0]=icm[0]
+
     out[1]=((y-2013)*12 + m)-1
     out[2]=y
     out[3]=itd
+    
     iname = items[items['item_id']==itd]['item_name'].values
-    #inval = Ipkl.transform(iname.astype(str))
-    out[4] =len(iname[0])
-    out[5]=len(iname[0])
-    out[6]=len(iname[0].split(' '))
-    icid = items[items['item_id']==itd]['item_category_id'].values
-    out[7] = icid[0]
-    icname =items_cat[items_cat['item_category_id']==icid[0]]['item_category_name'].values
-    #icnval = ICpkl.transform(icname.astype(str))
-    out[8]=len(icname[0])
-    out[9]=len(icname[0])
+    if(iname.size):
+        inval = Ipkl.transform(iname.astype(str))
+        out[4] =inval[0]
+        out[5]=len(iname[0])
+        out[6]=len(iname[0].split(' '))
+        icid = items[items['item_id']==itd]['item_category_id'].values
+        out[7] = icid[0]
+        icname =items_cat[items_cat['item_category_id']==icid[0]]['item_category_name'].values
+        icnval = ICpkl.transform(icname.astype(str))
+        out[8]=icnval[0]
+        out[9]=len(icname[0])
+    
+    
+    
     out[10]=s
-    return out
+    return out 
      
     
     
@@ -49,7 +57,6 @@ def predict():
     '''
     For rendering results on HTML GUI
     '''
-    #print("refdsd")
     int_features = [int(x) for x in request.form.values()]
     features = [np.array(int_features)]
     temp=pd.DataFrame(features,columns=['shop_id','item_id','month','year'])
@@ -63,6 +70,10 @@ def predict():
     
     year = temp['year']
     year = int(year[0])
+    if(shopid>=60 or itemid >=22185 or month <1 or year <2013):
+        output =0
+        return render_template('index.html', prediction_text='out of bound input,future sales count is {}'.format(output))
+
     
     final_features = inputdata(shopid,itemid,month,year)
     
@@ -82,7 +93,7 @@ def predict_api():
     For direct API calls trought request
     '''
     data = request.get_json(force=True)
-    features = [np.array(data)]
+    features = [np.array(list(data.values()))]
     temp=pd.DataFrame(features,columns=['shop_id','item_id','month','year'])
     shopid = temp['shop_id']
     shopid = int(shopid[0])
@@ -102,6 +113,7 @@ def predict_api():
     prediction = model.predict(input_variables).clip(0.,20)
     output = prediction[0].round(4)
     return jsonify(output)
+   
 
 
 if __name__ == "__main__":
